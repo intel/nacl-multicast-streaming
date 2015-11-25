@@ -1,0 +1,34 @@
+{
+  "name": "NaCl Multicast Streaming",
+  "version": "0.1",
+  "minimum_chrome_version": "46",
+  "manifest_version": 2,
+  "description": "Example of how to use the NaCl Multicast Streaming NaCl module.",
+  "offline_enabled": true,
+  "icons": {
+    "128": "icon128.png"
+  },
+  "app": {
+    "background": {
+      "scripts": ["js/background.js"],
+      "persistent": false
+    }
+  },
+  "permissions": [
+    {
+        "socket": [
+            "network-state",
+            "tcp-listen:*:*",
+            "tcp-connect",
+            "resolve-host",
+            "udp-bind:*:*",
+            "udp-multicast-membership",
+            "udp-send-to:*:*"
+        ]
+    },
+    "storage",
+    "desktopCapture",
+    "videoCapture",
+    "app.window.fullscreen"
+  ]
+}

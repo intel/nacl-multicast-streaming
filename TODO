@@ -1,0 +1,26 @@
+ - missing features:
+     - stop playing a stream if the sender stops sharing. Restart if needed.
+     - fix crash when joining an existing session
+     - check if it's possible to reduce initial hang at start
+         - is it caused by too many resend requests?
+     - performance:
+         - check if old nacks are being freed
+         - check how many times the same packet is being requested
+         - check how many times the same packet is being sent
+         - check number of lost packets (and number of peers who lost it)
+         - check if better performance can be achieved by changing some
+           constants:
+             - playout_delay_ms
+             - number of frames/packets sent per burst
+         - add capture resolution as a parameter to the JS interface
+ - refactory:
+     - merge UDPListener and UdpTransport
+     - move rtcp packet out of rtp.h
+     - remove shared pointers (most of they are possibly not necessary)
+     - change build so debug mode automatically enables debug messages
+   - move decoder/player code out of main.cc
+   - encrypt/decrypt transmitted content
+   - audio encoding/decoding
+   - Correctly set send_buffer_size
+ - extra:
+     - support IPv6

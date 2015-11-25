@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+<!--
+Copyright 2014 The Chromium Authors. All rights reserved.
+Copyright 2015 Intel Corporation. All rights reserved.
+Use of this source code is governed by a BSD-style license that can be
+found in the LICENSE file.
+-->
+<head>
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="-1">
+  <title>Multicast streaming</title>
+  <script type="text/javascript" src="js/lib/es6-promise.min.js"></script>
+  <script type="text/javascript" src="js/common.js"></script>
+  <script type="text/javascript" src="js/nms.js"></script>
+  <script type="text/javascript" src="js/main.js"></script>
+</head>
+<body data-width="1" data-height="1" data-name="manycast" data-tools="pnacl newlib glibc clang-newlib linux" data-configs="Debug Release" data-path="nacl/{tc}/{config}">
+  <h1>Multicast rtp streaming</h1>
+  <h2>Status: <code id="statusField">NO-STATUS</code></h2>
+  <p>The VideoDecode example demonstrates how to decode video and render it
+  on the page.</p>
+  <button type="button" id="detachLog">Detach log</button>
+  <button type="button" id="fullscreen">FullScreen</button></br>
+  Options:<br>
+  <div id="ip_block">
+      Receiver IP: <input type="text" name="IP" id="ipinput"
+                    pattern="\d?\d?\d\.\d?\d?\d\.\d?\d?\d\.\d?\d?\d"
+                    value="239.255.42.99" title="Valid IP">
+      <input id="localhost" type="checkbox" name="localhost"> <label for="localhost">localhost</label><br>
+  </div>
+
+  <!-- Bitrate config -->
+  <label for="bitrate">Bitrate:</label>
+  <input type="range" min="200" max="1000" step="100" name="bitrate" id="bitrate" value="200">
+  <label for="bitrate" id="bitratevalue">200 kbps</label>
+  <br>
+
+  <label for="fps">FPS:</label>
+  <input type="range" min="1" max="30" step="1" name="fps" id="fps" value="30">
+  <label for="fps" id="fpsvalue">30</label>
+  <br>
+
+  <button id="startSharing">Share Desktop</button>
+  <button id="startCamSharing">Share camera</button>
+  <button id="stopSharing">Stop Sharing</button>
+  <br>
+  <button id="playStream">Play stream</button>
+  <!-- The NaCl plugin will be embedded inside the element with id "listener".
+      See common.js.-->
+  <div id="listener"></div>
+  <pre id="log" style="font-weight: bold"></pre>
+</body>
+</html>

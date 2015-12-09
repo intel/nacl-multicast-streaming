@@ -44,8 +44,7 @@ FrameReceiver::FrameReceiver(base::TickClock* clock,
           config.rtp_max_delay_ms* config.target_frame_rate / 1000)),
       is_waiting_for_consecutive_frame_(false),
       lip_sync_drift_(ClockDriftSmoother::GetDefaultTimeConstant()),
-      network_timeouts_count_(0),
-      time_to_send_(0) {}
+      network_timeouts_count_(0) {}
 
 FrameReceiver::~FrameReceiver() {}
 
@@ -74,8 +73,7 @@ bool FrameReceiver::ProcessPacket(std::unique_ptr<RTPBase> packet) {
     bool wait_sender = rtcp_.IncomingRtcpPacket(rtcp_packet);
 
     if (wait_sender && (rtcp_packet->payloadType() == RTCP::RTPFB)) {
-      DINF() << "Increasing time...";
-      time_to_send_ += kDefaultRtcpIntervalMs;
+      // TODO: handle paused content
     }
   } else {
     // No way to convert from std::unique_ptr<RTPBase> to std::unique_ptr<RTP>,
@@ -160,11 +158,6 @@ void FrameReceiver::CheckNetworkTimeout(const base::TimeTicks& now) {
 }
 
 void FrameReceiver::SendNextRtcpReport(int result) {
-  if (time_to_send_ != 0) {
-    time_to_send_ += kDefaultRtcpIntervalMs;
-    ScheduleNextRtcpReport();
-    return;
-  }
   const base::TimeTicks now = clock_->NowTicks();
 
   CheckNetworkTimeout(now);
@@ -190,10 +183,7 @@ void FrameReceiver::ScheduleNextSharerMessage() {
 }
 
 void FrameReceiver::SendNextSharerMessage(int result) {
-  if (time_to_send_ == 0) {
-    time_to_send_ += kDefaultRtcpIntervalMs;
-    framer_->SendSharerMessage();
-  }
+  framer_->SendSharerMessage();
   ScheduleNextSharerMessage();
 }
 

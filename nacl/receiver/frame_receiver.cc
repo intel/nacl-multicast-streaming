@@ -106,7 +106,7 @@ void FrameReceiver::ProcessParsedPacket(std::unique_ptr<RTP> packet) {
 
   const base::TimeTicks now = clock_->NowTicks();
 
-  last_checked_time_ = now;
+  last_received_time_ = now;
   network_timeouts_count_ = 0;
 
   frame_id_to_rtp_timestamp_[frame_id & 0xff] = packet->timestamp();
@@ -150,8 +150,7 @@ void FrameReceiver::ScheduleNextRtcpReport() {
 
 void FrameReceiver::CheckNetworkTimeout(const base::TimeTicks& now) {
   int timeout = kMaxNetworkTimeoutMs * (1 + network_timeouts_count_);
-  base::TimeDelta delta = now - last_checked_time_;
-  last_checked_time_ = now;
+  base::TimeDelta delta = now - last_received_time_;
   if (delta > base::TimeDelta::FromMilliseconds(timeout)) {
     ERR() << "Not receiving network packets for " << delta.InMilliseconds()
           << " ms.";

@@ -86,7 +86,7 @@ class FrameReceiver : public RtpPayloadFeedback {
 
   OnNetworkTimeoutCallback on_network_timeout_;
   int network_timeouts_count_;
-  base::TimeTicks last_checked_time_;
+  base::TimeTicks last_received_time_;
   int time_to_send_;
   int last_frame_id_;
   /* uint32_t senderSsrc_; */

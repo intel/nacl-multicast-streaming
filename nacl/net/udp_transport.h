@@ -9,10 +9,10 @@
 #include "base/macros.h"
 #include "net/sharer_transport_config.h"
 #include "net/sharer_transport_defines.h"
+#include "sharer_environment.h"
 
 #include "ppapi/utility/completion_callback_factory.h"
 #include "ppapi/cpp/host_resolver.h"
-#include "ppapi/cpp/instance.h"
 #include "ppapi/cpp/udp_socket.h"
 
 namespace sharer {
@@ -22,7 +22,7 @@ using PacketReceiverCallback =
 
 class UdpTransport : public PacketSender {
  public:
-  UdpTransport(pp::Instance* instance,
+  UdpTransport(SharerEnvironment* env,
                /* const std::string& local_host, */
                /* uint16_t local_port, */
                const std::string& remote_host, uint16_t remote_port,
@@ -43,7 +43,7 @@ class UdpTransport : public PacketSender {
   void ReceiveNextPacket();
   void OnReceiveFromCompletion(int32_t result, pp::NetAddress source);
 
-  pp::Instance* instance_;
+  SharerEnvironment* env_;
 
   /* uint16_t local_port_; */
   pp::UDPSocket udp_socket_;

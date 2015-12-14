@@ -21,7 +21,7 @@ using TimeLastNackMap = std::map<uint32_t, base::TimeTicks>;
 
 class SharerMessageBuilder {
  public:
-  SharerMessageBuilder(base::TickClock* clock,
+  SharerMessageBuilder(sharer::SharerEnvironment* env,
                        RtpPayloadFeedback* incoming_payload_feedback,
                        const Framer* framer, uint32_t media_ssrc,
                        bool decoder_faster_than_max_frame_rate,
@@ -39,7 +39,7 @@ class SharerMessageBuilder {
   void BuildPacketList();
   bool UpdateSharerMessageInternal(RtcpSharerMessage* message);
 
-  base::TickClock* const clock_;
+  sharer::SharerEnvironment* const env_;
   RtpPayloadFeedback* const sharer_feedback_;
 
   // SharerMessageBuilder has only const access to the framer.

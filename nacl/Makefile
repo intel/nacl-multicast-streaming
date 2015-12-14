@@ -55,6 +55,7 @@ SENDER_SOURCES = \
 	sender/frame_sender.cc \
 	sender/video_encoder.cc \
 	sender/video_sender.cc \
+	sharer_environment.cc \
 	sharer_sender.cc
 
 SOURCES += $(SENDER_SOURCES)

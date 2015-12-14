@@ -6,9 +6,9 @@
 #ifndef _FRAMER_H_
 #define _FRAMER_H_
 
-#include "base/time/tick_clock.h"
 #include "base/time/time.h"
 #include "net/rtp/rtp_receiver_defines.h"
+#include "sharer_environment.h"
 
 #include <map>
 #include <memory>
@@ -23,7 +23,7 @@ using FrameList = std::map<uint32_t, std::shared_ptr<FrameBuffer> >;
 
 class Framer {
  public:
-  Framer(base::TickClock* clock, RtpPayloadFeedback* incoming_payload_feedback,
+  Framer(sharer::SharerEnvironment* env, RtpPayloadFeedback* incoming_payload_feedback,
          uint32_t ssrc, bool decoder_faster_than_max_frame_rate,
          int max_unacked_frames);
   ~Framer();

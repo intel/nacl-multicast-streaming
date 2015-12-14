@@ -7,6 +7,7 @@
 
 #include "base/macros.h"
 #include "sharer_config.h"
+#include "sharer_environment.h"
 #include "net/transport_sender.h"
 #include "sender/video_sender.h"
 
@@ -49,7 +50,8 @@ class SharerSender {
   void CheckInitialized();
   void SetTargetPlayoutDelay(const base::TimeDelta& playout_delay);
 
-  pp::Instance* instance_;
+  SharerEnvironment env_;
+
   int sender_id_;
 
   std::unique_ptr<base::TickClock> clock_;

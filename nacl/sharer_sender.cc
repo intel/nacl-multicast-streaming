@@ -13,9 +13,8 @@
 namespace sharer {
 
 SharerSender::SharerSender(pp::Instance* instance, int id)
-    : instance_(instance),
+    : env_(instance),
       sender_id_(id),
-      clock_(make_unique<base::DefaultTickClock>()),
       initialized_video_(false),
       /* initialized_audio_(false), */
       initialized_cb_(nullptr),
@@ -29,15 +28,14 @@ void SharerSender::Initialize(const SenderConfig& config,
 
   auto transport_cb =
       [this](bool result) { this->InitializedTransport(result); };
-  transport_ = make_unique<TransportSender>(instance_, clock_.get(), config,
-                                            transport_cb);
+  transport_ = make_unique<TransportSender>(&env_, config, transport_cb);
 
   auto video_cb = [this](bool result) { this->InitializedVideo(result); };
   auto playout_changed_cb = [this](const base::TimeDelta& playout_delay) {
     this->SetTargetPlayoutDelay(playout_delay);
   };
   video_sender_ =
-      make_unique<VideoSender>(instance_, clock_.get(), transport_.get(),
+      make_unique<VideoSender>(&env_, transport_.get(),
                                config, video_cb, playout_changed_cb);
 }
 

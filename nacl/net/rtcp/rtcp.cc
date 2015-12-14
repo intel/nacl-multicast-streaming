@@ -87,12 +87,12 @@ uint32_t RtcpHandler::GetSsrcOfSender(const uint8_t* rtcp_buffer,
 
 RtcpHandler::RtcpHandler(const RtcpSharerMessageCallback& sharer_callback,
                          const RtcpRttCallback& rtt_callback,
-                         base::TickClock* clock, UDPSender* transport,
+                         sharer::SharerEnvironment* env, UDPSender* transport,
                          sharer::PacedSender* packet_sender,
                          uint32_t local_ssrc, uint32_t remote_ssrc)
     : sharer_callback_(sharer_callback),
       rtt_callback_(rtt_callback),
-      clock_(clock),
+      env_(env),
       rtcp_builder_(local_ssrc),
       transport_(transport),
       packet_sender_(packet_sender),
@@ -168,7 +168,7 @@ bool RtcpHandler::IncomingRtcpPacket(const std::string& addr,
 void RtcpHandler::OnReceivedNtp(uint32_t ntp_seconds, uint32_t ntp_fraction) {
   last_report_truncated_ntp_ = ConvertToNtpDiff(ntp_seconds, ntp_fraction);
 
-  const base::TimeTicks now = clock_->NowTicks();
+  const base::TimeTicks now = env_->clock()->NowTicks();
   time_last_report_received_ = now;
 
   const base::TimeDelta measured_offset =
@@ -211,7 +211,7 @@ void RtcpHandler::OnReceivedDelaySinceLastReport(
     return;  // Feedback on another report
   }
 
-  const base::TimeDelta sender_delay = clock_->NowTicks() - it->second;
+  const base::TimeDelta sender_delay = env_->clock()->NowTicks() - it->second;
   const base::TimeDelta receiver_delay =
       sharer::ConvertFromNtpDiff(delay_since_last_report);
   current_round_trip_time_ = sender_delay - receiver_delay;
@@ -241,7 +241,7 @@ bool RtcpHandler::GetLatestLipSyncTimes(uint32_t* rtp_timestamp,
       local_clock_ahead_by_.Current();
 
   // Sanity-check: Getting regular lip sync updates?
-  PP_DCHECK((clock_->NowTicks() - local_reference_time) <
+  PP_DCHECK((env_->clock()->NowTicks() - local_reference_time) <
             base::TimeDelta::FromMinutes(1));
 
   *rtp_timestamp = lip_sync_rtp_timestamp_;

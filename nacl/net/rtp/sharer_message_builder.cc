@@ -15,10 +15,10 @@ static const int64_t kSharerMessageUpdateIntervalMs = 33;
 static const int64_t kNackRepeatIntervalMs = 30;
 
 SharerMessageBuilder::SharerMessageBuilder(
-    base::TickClock* clock, RtpPayloadFeedback* incoming_payload_feedback,
+    sharer::SharerEnvironment* env, RtpPayloadFeedback* incoming_payload_feedback,
     const Framer* framer, uint32_t media_ssrc,
     bool decoder_faster_than_max_frame_rate, int max_unacked_frames)
-    : clock_(clock),
+    : env_(env),
       sharer_feedback_(incoming_payload_feedback),
       framer_(framer),
       media_ssrc_(media_ssrc),
@@ -38,7 +38,7 @@ void SharerMessageBuilder::CompleteFrameReceived(uint32_t frame_id) {
   PP_DCHECK(static_cast<int32_t>(frame_id - last_completed_frame_id_) >= 0);
   if (last_update_time_.is_null()) {
     // Our first update.
-    last_update_time_ = clock_->NowTicks();
+    last_update_time_ = env_->clock()->NowTicks();
   }
 
   if (!UpdateAckMessage(frame_id)) {
@@ -59,7 +59,7 @@ bool SharerMessageBuilder::UpdateAckMessage(uint32_t frame_id) {
   last_completed_frame_id_ = frame_id;
   sharer_msg_.ack_frame_id = last_completed_frame_id_;  // not used anymore
   sharer_msg_.missing_frames_and_packets.clear();
-  last_update_time_ = clock_->NowTicks();
+  last_update_time_ = env_->clock()->NowTicks();
   return true;
 }
 
@@ -104,12 +104,12 @@ bool SharerMessageBuilder::UpdateSharerMessageInternal(
   if (last_update_time_.is_null()) {
     if (!framer_->Empty()) {
       // We have received packets.
-      last_update_time_ = clock_->NowTicks();
+      last_update_time_ = env_->clock()->NowTicks();
     }
     return false;
   }
   // Is it time to update the cast message?
-  base::TimeTicks now = clock_->NowTicks();
+  base::TimeTicks now = env_->clock()->NowTicks();
   if (now - last_update_time_ <
       base::TimeDelta::FromMilliseconds(kSharerMessageUpdateIntervalMs)) {
     return false;
@@ -124,7 +124,7 @@ bool SharerMessageBuilder::UpdateSharerMessageInternal(
 }
 
 void SharerMessageBuilder::BuildPacketList() {
-  base::TimeTicks now = clock_->NowTicks();
+  base::TimeTicks now = env_->clock()->NowTicks();
 
   // Clear message NACK list.
   sharer_msg_.missing_frames_and_packets.clear();

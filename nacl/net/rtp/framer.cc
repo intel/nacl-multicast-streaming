@@ -15,12 +15,12 @@
 
 static const uint32_t kOldFrameThreshold = 120;
 
-Framer::Framer(base::TickClock* clock,
+Framer::Framer(sharer::SharerEnvironment* env,
                RtpPayloadFeedback* incoming_payload_feedback, uint32_t ssrc,
                bool decoder_faster_than_max_frame_rate, int max_unacked_frames)
     : decoder_faster_than_max_frame_rate_(decoder_faster_than_max_frame_rate),
       sharer_msg_builder_(make_unique<SharerMessageBuilder>(
-          clock, incoming_payload_feedback, this, ssrc,
+          env, incoming_payload_feedback, this, ssrc,
           decoder_faster_than_max_frame_rate, max_unacked_frames)),
       waiting_for_key_(true),
       last_released_frame_(sharer::kStartFrameId),

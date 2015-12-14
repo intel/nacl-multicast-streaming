@@ -35,8 +35,8 @@ PacketKey PacedSender::MakePacketKey(const base::TimeTicks& ticks,
 PacedSender::PacketSendRecord::PacketSendRecord()
     : last_byte_sent(0), last_byte_sent_for_audio(0) {}
 
-PacedSender::PacedSender(base::TickClock* clock, UdpTransport* udp_sender)
-    : clock_(clock),
+PacedSender::PacedSender(SharerEnvironment* env, UdpTransport* udp_sender)
+    : env_(env),
       callback_factory_(this),
       transport_(udp_sender),
       audio_ssrc_(0),
@@ -126,7 +126,7 @@ bool PacedSender::ResendPackets(const std::string& addr,
     return true;
   }
   const bool high_priority = IsHighPriority(packets.begin()->first);
-  const base::TimeTicks now = clock_->NowTicks();
+  const base::TimeTicks now = env_->clock()->NowTicks();
   for (size_t i = 0; i < packets.size(); i++) {
     PacketWithIP packet_key = std::make_pair(addr, packets[i].first);
     if (!ShouldResend(packet_key, dedup_info, now)) {
@@ -227,7 +227,7 @@ void PacedSender::SendStoredPackets(int32_t result) {
     has_reached_upper_bound_once_ = true;
   }
 
-  base::TimeTicks now = clock_->NowTicks();
+  base::TimeTicks now = env_->clock()->NowTicks();
   // I don't actually trust that PostDelayTask(x - now) will mean that
   // now >= x when the call happens, so check if the previous state was
   // State_BurstFull too.

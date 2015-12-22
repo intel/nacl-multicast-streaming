@@ -4,6 +4,10 @@
 
 "use strict";
 
+var kMinMajor = 46;
+var kMinMinor = 0;
+var kMinBuild = 2472;
+
 var logBlock = null;
 var kMaxLogMessageLength = 20;
 var logMessageArray = [];
@@ -219,6 +223,8 @@ function moduleDidLoad() {
     document.getElementById('playStream').onclick = startPlay;
     document.getElementById('detachLog').onclick = detachLog;
     document.getElementById('fullscreen').onclick = setFullscreen;
+
+    checkVersion();
 }
 
 function stopStreamReceiver() {
@@ -344,6 +350,33 @@ function detachLog() {
 
 function customlog(msg) {
   localLog(0, msg);
+}
+
+function checkVersion() {
+  chrome.runtime.getPlatformInfo(function(platformInfo) {
+    // If the app is running on ChromeOS, check if the browser version is at
+    // least 46.0.2472.0
+    if (platformInfo.os.toString() == "cros") {
+      // The user agent will contain a string in the form of "Chrome/A.B.C.D",
+      // where A, B, C, D are numbers
+      var browserVersion = navigator.userAgent
+                      .match(/Chrome\/([0-9]+)\.([0-9]+)\.([0-9]+)\.([0-9]+)/);
+
+      var major = parseInt(browserVersion[1], 10);
+      var minor = parseInt(browserVersion[2], 10);
+      var build = parseInt(browserVersion[3], 10);
+
+      if ((major < kMinMajor) ||
+          (major == kMinMajor && minor < kMinMinor) ||
+          (major == kMinMajor && minor == kMinMinor && build < kMinBuild)) {
+        chrome.app.window.create('version_popup.html', {
+          id: "version_popup",
+          width: 300,
+          height: 200
+        });
+      }
+    }
+  });
 }
 
 window.onload = function() {

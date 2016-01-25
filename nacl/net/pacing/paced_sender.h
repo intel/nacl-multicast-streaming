@@ -59,6 +59,7 @@ class PacedSender {
 
   bool ShouldResend(const PacketWithIP& packet_key, const DedupInfo& dedup_info,
                     const base::TimeTicks& now);
+  void LogPacketEvent(PacketRef packet, SharerLoggingEvent type);
 
   enum class PacketType { RTCP, Resend, Normal };
 

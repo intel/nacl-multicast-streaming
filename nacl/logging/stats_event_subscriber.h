@@ -27,12 +27,17 @@ class StatsEventSubscriber : public RawEventSubscriber {
   // Custom methods
   void Reset();
 
+  void PrintPackets() const;
+  void PrintFrames() const;
+
   int packets_sent() const { return packets_sent_; }
   int packets_retransmitted() const { return packets_retransmitted_; }
 
  private:
+  int packets_total_;
   int packets_sent_;
   int packets_retransmitted_;
+  int packets_rejected_;
 
   DISALLOW_COPY_AND_ASSIGN(StatsEventSubscriber);
 };

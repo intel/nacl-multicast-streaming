@@ -136,7 +136,7 @@ void VideoSender::ConfigureTrack() {
   int32_t attrib_list[]{
       PP_MEDIASTREAMVIDEOTRACK_ATTRIB_FORMAT, encoder_->format(),
       PP_MEDIASTREAMVIDEOTRACK_ATTRIB_WIDTH,  encoder_->size().width(),
-      PP_MEDIASTREAMVIDEOTRACK_ATTRIB_WIDTH,  encoder_->size().width(),
+      PP_MEDIASTREAMVIDEOTRACK_ATTRIB_HEIGHT,  encoder_->size().height(),
       PP_MEDIASTREAMVIDEOTRACK_ATTRIB_NONE};
 
   auto cc = factory_.NewCallback(&VideoSender::OnConfiguredTrack);

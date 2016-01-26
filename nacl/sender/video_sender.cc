@@ -37,8 +37,7 @@ VideoSender::VideoSender(SharerEnvironment* env,
       pause_delta_(0.1),
       is_receiving_track_frames_(false),
       is_sending_(false) {
-  auto encoder_cb = [this](bool result) { this->Initialized(result); };
-  encoder_ = make_unique<VideoEncoder>(env->instance(), config, encoder_cb);
+  encoder_ = make_unique<VideoEncoder>(env->instance(), config);
 
   auto sharer_feedback_cb =
       [this](const std::string& addr, const RtcpSharerMessage& sharer_message) {
@@ -54,6 +53,9 @@ VideoSender::VideoSender(SharerEnvironment* env,
   transport_config.rtp_payload_type = 96;
   transport_sender->InitializeVideo(transport_config, sharer_feedback_cb,
                                     rtt_cb);
+
+  initialized_ = true;
+  cb(true);
 }
 
 VideoSender::~VideoSender() { DINF() << "Destroying VideoSender."; }
@@ -73,16 +75,6 @@ base::TimeDelta VideoSender::GetInFlightMediaDuration() const {
 }
 
 void VideoSender::OnAck(uint32_t frame_id) {}
-
-void VideoSender::Initialized(bool result) {
-  initialized_ = result;
-  if (!result) {
-    ERR() << "Failed to initialize encoder.";
-    encoder_ = nullptr;
-  }
-  initialized_cb_(result);
-  initialized_cb_ = nullptr;
-}
 
 void VideoSender::StartSending(const pp::MediaStreamVideoTrack& video_track,
                                const SharerSuccessCb& cb) {
@@ -135,8 +127,6 @@ void VideoSender::ChangeEncoding(const SenderConfig& config) {
 void VideoSender::ConfigureTrack() {
   int32_t attrib_list[]{
       PP_MEDIASTREAMVIDEOTRACK_ATTRIB_FORMAT, encoder_->format(),
-      PP_MEDIASTREAMVIDEOTRACK_ATTRIB_WIDTH,  encoder_->size().width(),
-      PP_MEDIASTREAMVIDEOTRACK_ATTRIB_HEIGHT,  encoder_->size().height(),
       PP_MEDIASTREAMVIDEOTRACK_ATTRIB_NONE};
 
   auto cc = factory_.NewCallback(&VideoSender::OnConfiguredTrack);

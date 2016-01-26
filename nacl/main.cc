@@ -558,6 +558,8 @@ void MyInstance::PaintNextPicture() {
         graphics_3d, shader_external_oes_.texcoord_scale_location, 1.0, 1.0);
   }
 
+  DINF() << ">>>>>> Texture size: " << picture.texture_size.width << " x " << picture.texture_size.height;
+
   gles2_if_->Viewport(graphics_3d, x, y, plugin_size_.width(),
                       plugin_size_.height());
   gles2_if_->ActiveTexture(graphics_3d, GL_TEXTURE0);

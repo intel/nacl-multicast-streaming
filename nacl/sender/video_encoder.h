@@ -30,9 +30,9 @@ class VideoEncoder {
   using EncoderReleaseCb = std::function<void(pp::VideoFrame frame)>;
   using EncoderEncodedCb =
       std::function<void(bool success, std::shared_ptr<EncodedFrame> frame)>;
+  using EncoderResizedCb = std::function<void(bool success)>;
 
-  explicit VideoEncoder(pp::Instance* instance, const SenderConfig& config,
-                        VideoEncoderInitializedCb cb);
+  explicit VideoEncoder(pp::Instance* instance, const SenderConfig& config);
 
   const pp::Size& size() { return encoder_size_; }
   const PP_VideoFrame_Format format() { return frame_format_; }
@@ -43,16 +43,39 @@ class VideoEncoder {
   void FlushEncodedFrames();
   void Stop();
   void ChangeEncoding(const SenderConfig& config);
+  void Resize(const pp::Size& size, EncoderResizedCb cb);
 
  private:
+  enum class RequestType {
+    NONE,
+    ENCODE,
+    RESIZE
+  };
+
   struct Request {
+    Request();
+    virtual ~Request();
+    RequestType type;
+  };
+
+  struct RequestEncode : Request {
+    RequestEncode();
     pp::VideoFrame frame;
     EncoderReleaseCb callback;
     base::TimeTicks reference_time;
   };
 
+  struct RequestResize : Request {
+    explicit RequestResize(const pp::Size& size);
+    pp::Size size;
+    EncoderResizedCb callback;
+  };
+
   void Initialize();
   void InitializedThread(int32_t result);
+  void ProcessNextRequest();
+  bool ProcessEncodeRequest();
+  bool ProcessResizeRequest();
   void EncodeOneFrame();
   void OnFrameReleased(int32_t result);
   void OnEncodedFrame(int32_t result, std::shared_ptr<EncodedFrame> frame);
@@ -64,25 +87,24 @@ class VideoEncoder {
   void ThreadEncode(int32_t result);
   void ThreadInformFrameRelease(int32_t result);
   void ThreadOnEncoderFrame(int32_t result, pp::VideoFrame encoder_frame,
-                            Request req);
+                            Request* req);
   int32_t ThreadCopyVideoFrame(pp::VideoFrame dest, pp::VideoFrame src);
   void ThreadOnBitstreamBufferReceived(int32_t result,
                                        PP_BitstreamBuffer buffer);
   std::shared_ptr<EncodedFrame> PauseStreamToEncodedFrame();
   std::shared_ptr<EncodedFrame> ThreadBitstreamToEncodedFrame(
       PP_BitstreamBuffer buffer);
-  void ThreadOnEncodeDone(int32_t result, PP_TimeDelta timestamp, Request req);
+  void ThreadOnEncodeDone(int32_t result, PP_TimeDelta timestamp, RequestEncode* req);
 
   pp::Instance* instance_;
   pp::CompletionCallbackFactory<VideoEncoder> factory_;
-  VideoEncoderInitializedCb initialized_cb_;
   SenderConfig config_;
   pp::Size encoder_size_;
 
   PP_VideoFrame_Format frame_format_;
 
-  std::queue<Request> requests_;
-  Request current_request_;
+  std::queue<std::unique_ptr<Request>> requests_;
+  std::unique_ptr<Request> current_request_;
   EncoderEncodedCb encoded_cb_;
 
   std::queue<std::shared_ptr<EncodedFrame>> encoded_frames_;
@@ -95,7 +117,9 @@ class VideoEncoder {
   uint32_t last_encoded_frame_id_;
   PP_TimeDelta last_timestamp_;
   base::TimeTicks last_reference_time_;
+  pp::Size requested_size_;
   bool is_initialized_;
+  bool is_initializing_;
 
   DISALLOW_COPY_AND_ASSIGN(VideoEncoder);
 };

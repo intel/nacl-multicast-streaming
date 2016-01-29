@@ -29,6 +29,7 @@ class VideoSender : public FrameSender {
                        PlayoutDelayChangeCb playout_delay_change_cb);
   ~VideoSender();
 
+  void SetSize(const pp::Size& size);
   void StartSending(const pp::MediaStreamVideoTrack& video_track,
                     const SharerSuccessCb& cb);
   void StopSending(const SharerSuccessCb& cb);
@@ -41,6 +42,11 @@ class VideoSender : public FrameSender {
 
  private:
   void Initialized(bool result);
+  void ConfigureForFirstFrame();
+  void OnConfiguredForFirstFrame(int32_t result);
+  void OnFirstFrame(int32_t result, pp::VideoFrame frame);
+  void OnEncoderResized(bool success);
+  pp::Size CalculateSize() const;
   void ConfigureTrack();
   void OnConfiguredTrack(int32_t result);
   void StartTrackFrames();
@@ -70,6 +76,11 @@ class VideoSender : public FrameSender {
   base::TimeTicks last_reference_time_;
   PP_TimeTicks pause_delta_;
   RtpTimestamp last_enqueued_frame_rtp_timestamp_;
+
+  pp::Size requested_size_;
+  pp::Size stream_size_;
+  bool querying_size_;
+  bool skip_resize_;
 
   bool is_receiving_track_frames_;
   bool is_sending_;

@@ -43,16 +43,22 @@ void VideoEncoder::Initialize() {
 }
 
 void VideoEncoder::InitializedThread(int32_t result) {
-  if (!is_initialized_) is_initialized_ = true;
-
   if (!current_request_)
     WRN() << "No current request. Stop requested during startup?";
 
   if (current_request_->type != RequestType::RESIZE) {
     WRN() << "Wrong type of request after thread initialized: "
-          << current_request_->type;
+          << (current_request_->type == RequestType::ENCODE ?
+              "ENCODE" : "NONE");
     return;
   }
+
+  auto req = dynamic_cast<const RequestResize&>(*current_request_);
+  if (req.callback) {
+    req.callback(result == PP_OK);
+  }
+
+  if (!is_initialized_ && result == PP_OK) is_initialized_ = true;
 
   current_request_ = nullptr;
   ProcessNextRequest();
@@ -218,12 +224,14 @@ void VideoEncoder::ThreadInitialize() {
   DINF() << "Thread starting.";
   thread_loop_.AttachToCurrentThread();
 
+  auto req = dynamic_cast<const RequestResize&>(*current_request_);
+
   auto cc = factory_.NewCallback(&VideoEncoder::ThreadInitialized);
 
   video_encoder_ = pp::VideoEncoder(instance_);
   // Always use VP8 codec and hardware acceleration, if available
   video_encoder_.Initialize(
-      frame_format_, pp::Size(1280, 720), PP_VIDEOPROFILE_VP8_ANY,
+      frame_format_, req.size, PP_VIDEOPROFILE_VP8_ANY,
       config_.initial_bitrate * 1000, PP_HARDWAREACCELERATION_WITHFALLBACK, cc);
 
   thread_loop_.Run();

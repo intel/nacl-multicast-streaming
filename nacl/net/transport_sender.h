@@ -21,6 +21,7 @@
 #include "base/macros.h"
 #include "base/time/default_tick_clock.h"
 #include "sharer_config.h"
+#include "sharer_environment.h"
 #include "net/sharer_transport_defines.h"
 #include "net/udp_transport.h"
 #include "net/pacing/paced_sender.h"
@@ -38,7 +39,7 @@ class UdpTransport;
 
 class TransportSender {
  public:
-  TransportSender(pp::Instance* instance, base::TickClock* clock,
+  TransportSender(SharerEnvironment* env,
                   const SenderConfig& config, const TransportInitializedCb& cb);
   ~TransportSender();
 
@@ -70,7 +71,7 @@ class TransportSender {
                      bool cancel_rtx_if_not_in_list,
                      const DedupInfo& dedup_info);
 
-  base::TickClock* clock_;
+  SharerEnvironment* env_;
 
   UdpTransport transport_;
   PacedSender pacer_;

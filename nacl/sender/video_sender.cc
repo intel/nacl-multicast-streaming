@@ -6,7 +6,6 @@
 
 #include "base/logger.h"
 #include "base/ptr_utils.h"
-#include "base/time/default_tick_clock.h"
 #include "net/sharer_transport_config.h"
 #include "net/transport_sender.h"
 #include "sender/congestion_control.h"
@@ -17,18 +16,18 @@ namespace sharer {
 const int kRoundTripsNeeded = 4;
 const int kConstantTimeMs = 75;
 
-VideoSender::VideoSender(pp::Instance* instance, base::TickClock* clock,
+VideoSender::VideoSender(SharerEnvironment* env,
                          TransportSender* const transport_sender,
                          const SenderConfig& config, SharerSuccessCb cb,
                          PlayoutDelayChangeCb playout_delay_change_cb)
-    : FrameSender(clock, false, transport_sender, kVideoFrequency,
+    : FrameSender(env->clock(), false, transport_sender, kVideoFrequency,
                   11, /* config.ssrc, */
                   config.frame_rate,
                   base::TimeDelta(), /* config.min_playout_delay, */
                   base::TimeDelta::FromMilliseconds(
                       kDefaultRtpMaxDelayMs), /* config.max_playout_delay, */
                   NewFixedCongestionControl(2000000)),
-      clock_(clock),
+      env_(env),
       initialized_(false),
       initialized_cb_(cb),
       playout_delay_change_cb_(playout_delay_change_cb),
@@ -39,7 +38,7 @@ VideoSender::VideoSender(pp::Instance* instance, base::TickClock* clock,
       is_receiving_track_frames_(false),
       is_sending_(false) {
   auto encoder_cb = [this](bool result) { this->Initialized(result); };
-  encoder_ = make_unique<VideoEncoder>(instance, config, encoder_cb);
+  encoder_ = make_unique<VideoEncoder>(env->instance(), config, encoder_cb);
 
   auto sharer_feedback_cb =
       [this](const std::string& addr, const RtcpSharerMessage& sharer_message) {
@@ -218,7 +217,7 @@ bool VideoSender::InsertRawVideoFrame(const pp::VideoFrame& frame) {
   }
   PP_TimeTicks time_sticks = frame.GetTimestamp();
 
-  const base::TimeTicks reference_time = clock_->NowTicks();
+  const base::TimeTicks reference_time = env_->clock()->NowTicks();
 
   const RtpTimestamp rtp_timestamp =
       PP_TimeDeltaToRtpDelta(time_sticks, kVideoFrequency);

@@ -8,6 +8,7 @@
 #include "base/macros.h"
 #include "sender/frame_sender.h"
 #include "sender/video_encoder.h"
+#include "sharer_environment.h"
 
 #include "ppapi/cpp/media_stream_video_track.h"
 
@@ -22,7 +23,7 @@ class VideoSender : public FrameSender {
   using PlayoutDelayChangeCb = std::function<void(base::TimeDelta)>;
   using SharerSuccessCb = std::function<void(bool success)>;
 
-  explicit VideoSender(pp::Instance* instance, base::TickClock* clock,
+  explicit VideoSender(SharerEnvironment* env,
                        TransportSender* const transport_sender,
                        const SenderConfig& config, SharerSuccessCb cb,
                        PlayoutDelayChangeCb playout_delay_change_cb);
@@ -52,7 +53,7 @@ class VideoSender : public FrameSender {
   void OnEncodedFrame(bool success, std::shared_ptr<EncodedFrame> frame);
   bool InsertRawVideoFrame(const pp::VideoFrame& frame);
 
-  base::TickClock* clock_;
+  SharerEnvironment* env_;
 
   bool initialized_;
   SharerSuccessCb initialized_cb_;

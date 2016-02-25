@@ -6,7 +6,6 @@
 #ifndef _RTCP_HANDLER_
 #define _RTCP_HANDLER_
 
-#include "base/time/tick_clock.h"
 #include "base/time/time.h"
 #include "net/sharer_transport_defines.h"
 #include "net/pacing/paced_sender.h"
@@ -14,6 +13,7 @@
 #include "net/rtcp/rtcp_defines.h"
 #include "net/rtp/rtp_receiver_defines.h"
 #include "common/clock_drift_smoother.h"
+#include "sharer_environment.h"
 
 #include <memory>
 #include <queue>
@@ -30,7 +30,7 @@ class RtcpHandler {
   static uint32_t GetSsrcOfSender(const uint8_t* rtcp_bufer, size_t length);
 
   RtcpHandler(const RtcpSharerMessageCallback& sharer_callback,
-              const RtcpRttCallback& rtt_calback, base::TickClock* clock,
+              const RtcpRttCallback& rtt_calback, sharer::SharerEnvironment* env,
               UDPSender* transport, sharer::PacedSender* packet_sender,
               uint32_t local_ssrc, uint32_t remote_ssrc);
   virtual ~RtcpHandler();
@@ -73,7 +73,7 @@ class RtcpHandler {
 
   const RtcpSharerMessageCallback sharer_callback_;
   const RtcpRttCallback rtt_callback_;
-  base::TickClock* const clock_;  // non-owning pointer
+  sharer::SharerEnvironment* const env_;  // non-owning pointer
   RtcpBuilder rtcp_builder_;
 
   UDPSender* transport_;  // not owning pointer

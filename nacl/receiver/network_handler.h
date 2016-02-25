@@ -8,6 +8,7 @@
 #include "receiver/frame_receiver.h"
 #include "net/udp_delegate_interface.h"
 #include "net/udp_listener.h"
+#include "sharer_environment.h"
 
 #include "ppapi/cpp/instance.h"
 
@@ -41,11 +42,10 @@ class NetworkHandler : public UDPDelegateInterface {
   /* void FillBuffer(const RTP* packet, int32_t start, int32_t size); */
   /* void DropFrame(); */
 
-  pp::Instance* instance_;
+  sharer::SharerEnvironment env_;
   /* NetworkDelegateInterface* delegate_; */
   UDPListener udp_listener_;
 
-  std::unique_ptr<base::TickClock> clock_;
   FrameReceiver videoReceiver_;
   FrameReceiver audioReceiver_;
   /* SourceHandler srcVideo_; */

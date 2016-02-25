@@ -6,7 +6,6 @@
 
 #include "base/logger.h"
 #include "base/ptr_utils.h"
-#include "base/time/default_tick_clock.h"
 #include "sharer_config.h"
 #include "net/rtp/rtp.h"
 
@@ -16,11 +15,10 @@
 NetworkHandler::NetworkHandler(pp::Instance* instance,
                                const ReceiverConfig& audio_config,
                                const ReceiverConfig& video_config)
-    : instance_(instance),
-      udp_listener_(instance_, this, "0.0.0.0", 5004),
-      clock_(make_unique<base::DefaultTickClock>()),
-      videoReceiver_(clock_.get(), video_config, &udp_listener_),
-      audioReceiver_(clock_.get(), audio_config, &udp_listener_),
+    : env_(instance),
+      udp_listener_(instance, this, "0.0.0.0", 5004),
+      videoReceiver_(&env_, video_config, &udp_listener_),
+      audioReceiver_(&env_, audio_config, &udp_listener_),
       frameRequested_(false) {
   auto cb = [this]() { udp_listener_.OnNetworkTimeout(); };
   videoReceiver_.SetOnNetworkTimeout(cb);
@@ -31,7 +29,7 @@ NetworkHandler::~NetworkHandler() {}
 void NetworkHandler::OnReceived(const char* buffer, int32_t size) {
   const unsigned char* data = reinterpret_cast<const unsigned char*>(buffer);
   uint32_t ssrc;
-  std::unique_ptr<RTPBase> packet = rtpParse(instance_, data, size, &ssrc);
+  std::unique_ptr<RTPBase> packet = rtpParse(env_.instance(), data, size, &ssrc);
   if (!packet) {
     return;
   }

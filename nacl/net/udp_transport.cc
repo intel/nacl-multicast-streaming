@@ -22,20 +22,20 @@ static uint16_t Htons(uint16_t hostshort) {
   return result;
 }
 
-UdpTransport::UdpTransport(pp::Instance* instance,
+UdpTransport::UdpTransport(SharerEnvironment* env,
                            /* const std::string& local_host, */
                            /* uint16_t local_port, */
                            const std::string& remote_host, uint16_t remote_port,
                            int32_t send_buffer_size,
                            const TransportInitializedCb& cb)
-    : instance_(instance),
+    : env_(env),
       resolved_(false),
       send_pending_(false),
       receive_pending_(false),
       callback_factory_(this),
       /* send_buffer_size_(send_buffer_size), */
       bytes_sent_(0) {
-  udp_socket_ = pp::UDPSocket(instance_);
+  udp_socket_ = pp::UDPSocket(env_->instance());
   if (udp_socket_.is_null()) {
     ERR() << "Could not create UDPSocket.";
     return;
@@ -46,7 +46,7 @@ UdpTransport::UdpTransport(pp::Instance* instance,
     return;
   }
 
-  resolver_ = pp::HostResolver(instance_);
+  resolver_ = pp::HostResolver(env_->instance());
   if (resolver_.is_null()) {
     ERR() << "Could not create HostResolver.";
     return;
@@ -81,7 +81,7 @@ void UdpTransport::StartReceiving(const PacketReceiverCallback& cb) {
 
   PP_NetAddress_IPv4 ipv4_addr = {Htons(5679), {0, 0, 0, 0}};
   auto callback = callback_factory_.NewCallback(&UdpTransport::OnBound);
-  udp_socket_.Bind(pp::NetAddress(instance_, ipv4_addr), callback);
+  udp_socket_.Bind(pp::NetAddress(env_->instance(), ipv4_addr), callback);
 }
 
 void UdpTransport::OnBound(int32_t result) {

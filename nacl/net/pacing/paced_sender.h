@@ -7,11 +7,11 @@
 #define NET_PACING_PACED_SENDER_H_
 
 #include "base/macros.h"
-#include "base/time/tick_clock.h"
 #include "base/time/time.h"
 #include "net/sharer_transport_config.h"
 #include "net/rtp/rtp_receiver_defines.h"
 #include "net/udp_transport.h"
+#include "sharer_environment.h"
 
 #include "ppapi/utility/completion_callback_factory.h"
 
@@ -33,7 +33,7 @@ struct DedupInfo {
 
 class PacedSender {
  public:
-  PacedSender(base::TickClock* clock, UdpTransport* udpsender);
+  PacedSender(SharerEnvironment* env, UdpTransport* udpsender);
   ~PacedSender();
 
   void RegisterAudioSsrc(uint32_t audio_ssrc);
@@ -59,6 +59,7 @@ class PacedSender {
 
   bool ShouldResend(const PacketWithIP& packet_key, const DedupInfo& dedup_info,
                     const base::TimeTicks& now);
+  void LogPacketEvent(PacketRef packet, SharerLoggingEvent type);
 
   enum class PacketType { RTCP, Resend, Normal };
 
@@ -71,7 +72,7 @@ class PacedSender {
 
   bool IsHighPriority(const PacketKey& packet_key) const;
 
-  base::TickClock* const clock_;
+  SharerEnvironment* const env_;
   pp::CompletionCallbackFactory<PacedSender> callback_factory_;
   UdpTransport* transport_;
 

@@ -25,7 +25,7 @@ static inline base::TimeDelta RtpDeltaToTimeDelta(int64_t rtp_delta,
   return rtp_delta * base::TimeDelta::FromSeconds(1) / rtp_timebase;
 }
 
-FrameReceiver::FrameReceiver(base::TickClock* clock,
+FrameReceiver::FrameReceiver(sharer::SharerEnvironment* env,
                              const ReceiverConfig& config, UDPSender* transport)
     /* : senderSsrc_(sender_ssrc) { */
     : rtp_timebase_(config.rtp_timebase),
@@ -34,13 +34,13 @@ FrameReceiver::FrameReceiver(base::TickClock* clock,
       expected_frame_duration_(base::TimeDelta::FromSeconds(1) /
                                config.target_frame_rate),
       callback_factory_(this),
-      clock_(clock),
-      rtcp_(nullptr, nullptr, clock, transport, nullptr, config.receiver_ssrc,
+      env_(env),
+      rtcp_(nullptr, nullptr, env_, transport, nullptr, config.receiver_ssrc,
             config.sender_ssrc),
       stats_(),
       reports_are_scheduled_(false),
       framer_(make_unique<Framer>(
-          clock, this, config.sender_ssrc, true,
+          env_, this, config.sender_ssrc, true,
           config.rtp_max_delay_ms* config.target_frame_rate / 1000)),
       is_waiting_for_consecutive_frame_(false),
       lip_sync_drift_(ClockDriftSmoother::GetDefaultTimeConstant()),
@@ -102,7 +102,7 @@ void FrameReceiver::ProcessParsedPacket(std::unique_ptr<RTP> packet) {
   else
     DINF() << "Received packet: " << frame_id << ":" << packet_id;
 
-  const base::TimeTicks now = clock_->NowTicks();
+  const base::TimeTicks now = env_->clock()->NowTicks();
 
   last_received_time_ = now;
   network_timeouts_count_ = 0;
@@ -158,7 +158,7 @@ void FrameReceiver::CheckNetworkTimeout(const base::TimeTicks& now) {
 }
 
 void FrameReceiver::SendNextRtcpReport(int result) {
-  const base::TimeTicks now = clock_->NowTicks();
+  const base::TimeTicks now = env_->clock()->NowTicks();
 
   CheckNetworkTimeout(now);
 
@@ -172,7 +172,7 @@ void FrameReceiver::ScheduleNextSharerMessage() {
   base::TimeTicks send_time;
   framer_->TimeToSendNextSharerMessage(&send_time);
 
-  base::TimeDelta time_to_send = send_time - clock_->NowTicks();
+  base::TimeDelta time_to_send = send_time - env_->clock()->NowTicks();
   time_to_send = std::max(
       time_to_send, base::TimeDelta::FromMilliseconds(kMinSchedulingDelayMs));
 
@@ -192,7 +192,7 @@ void FrameReceiver::SendPausedIndication(int last_frame, int pause_id) {
 }
 
 void FrameReceiver::SharerFeedback(const RtcpSharerMessage& sharer_message) {
-  base::TimeTicks now = clock_->NowTicks();
+  base::TimeTicks now = env_->clock()->NowTicks();
 
   rtcp_.SendRtcpFromRtpReceiver(rtcp_.ConvertToNTPAndSave(now), &sharer_message,
                                 target_playout_delay_, nullptr);
@@ -214,7 +214,7 @@ void FrameReceiver::EmitAvailableEncodedFrames() {
       return;
     }
 
-    const base::TimeTicks now = clock_->NowTicks();
+    const base::TimeTicks now = env_->clock()->NowTicks();
     const base::TimeTicks playout_time = GetPlayoutTime(*encoded_frame);
 
     if (have_multiple_complete_frames && now > playout_time) {

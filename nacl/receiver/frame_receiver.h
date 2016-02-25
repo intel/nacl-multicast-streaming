@@ -10,6 +10,7 @@
 #include "net/rtcp/rtcp.h"
 #include "net/rtp/receiver_stats.h"
 #include "net/rtp/rtp_receiver_defines.h"
+#include "sharer_environment.h"
 
 #include "ppapi/utility/completion_callback_factory.h"
 
@@ -33,7 +34,7 @@ using OnNetworkTimeoutCallback = std::function<void(void)>;
 
 class FrameReceiver : public RtpPayloadFeedback {
  public:
-  FrameReceiver(base::TickClock* clock, const ReceiverConfig& config,
+  FrameReceiver(sharer::SharerEnvironment* env, const ReceiverConfig& config,
                 UDPSender* transport);
   ~FrameReceiver();
 
@@ -66,7 +67,7 @@ class FrameReceiver : public RtpPayloadFeedback {
 
   pp::CompletionCallbackFactory<FrameReceiver> callback_factory_;
 
-  base::TickClock* const clock_;  // non-owning pointer
+  sharer::SharerEnvironment* const env_;  // non-owning pointer
   RtcpHandler rtcp_;
   ReceiverStats stats_;
 

@@ -8,18 +8,26 @@
 #include "base/ptr_utils.h"
 #include "sender/video_sender.h"
 
+#include "ppapi/cpp/instance.h"
+
 #include <string>
+
+static int kReportIntervalMs = 5000;
 
 namespace sharer {
 
 SharerSender::SharerSender(pp::Instance* instance, int id)
-    : instance_(instance),
+    : env_(instance),
       sender_id_(id),
-      clock_(make_unique<base::DefaultTickClock>()),
+      factory_(this),
+      report_scheduled_(false),
+      stream_sharing_(false),
       initialized_video_(false),
       /* initialized_audio_(false), */
       initialized_cb_(nullptr),
-      pauseID(0) {}
+      pauseID(0) {
+  env_.logger()->Subscribe(&stats_);
+}
 
 SharerSender::~SharerSender() { DINF() << "Destroying SharerSender."; }
 
@@ -29,15 +37,14 @@ void SharerSender::Initialize(const SenderConfig& config,
 
   auto transport_cb =
       [this](bool result) { this->InitializedTransport(result); };
-  transport_ = make_unique<TransportSender>(instance_, clock_.get(), config,
-                                            transport_cb);
+  transport_ = make_unique<TransportSender>(&env_, config, transport_cb);
 
   auto video_cb = [this](bool result) { this->InitializedVideo(result); };
   auto playout_changed_cb = [this](const base::TimeDelta& playout_delay) {
     this->SetTargetPlayoutDelay(playout_delay);
   };
   video_sender_ =
-      make_unique<VideoSender>(instance_, clock_.get(), transport_.get(),
+      make_unique<VideoSender>(&env_, transport_.get(),
                                config, video_cb, playout_changed_cb);
 }
 
@@ -45,13 +52,38 @@ bool SharerSender::SetTracks(const pp::MediaStreamVideoTrack& video_track,
                              const SharerSuccessCb& cb) {
   DINF() << "Setting audio and video tracks.";
   video_sender_->StartSending(video_track, cb);
+  stream_sharing_ = true;
+
+  ScheduleReport();
+
   return true;
 }
 
 bool SharerSender::StopTracks(const SharerSuccessCb& cb) {
   DINF() << "Stop sendng.";
   video_sender_->StopSending(cb);
+  stream_sharing_ = false;
+  stats_.PrintPackets();
   return true;
+}
+
+void SharerSender::RunReport(int32_t result) {
+  report_scheduled_ = false;
+
+  if (!stream_sharing_)
+    return;
+
+  stats_.PrintPackets();
+  ScheduleReport();
+}
+
+void SharerSender::ScheduleReport() {
+  if (report_scheduled_)
+    return;
+
+  auto cc = factory_.NewCallback(&SharerSender::RunReport);
+  pp::Module::Get()->core()->CallOnMainThread(kReportIntervalMs, cc);
+  report_scheduled_ = true;
 }
 
 void SharerSender::ChangeEncoding(const SenderConfig& config) {

@@ -41,6 +41,9 @@ BASE_SOURCES = \
 SOURCES = $(BASE_SOURCES)
 
 SENDER_SOURCES = \
+	logging/logging_defines.cc \
+	logging/log_event_dispatcher.cc \
+	logging/stats_event_subscriber.cc \
 	net/pacing/paced_sender.cc \
 	net/transport_sender.cc \
 	net/udp_transport.cc \
@@ -52,6 +55,7 @@ SENDER_SOURCES = \
 	sender/frame_sender.cc \
 	sender/video_encoder.cc \
 	sender/video_sender.cc \
+	sharer_environment.cc \
 	sharer_sender.cc
 
 SOURCES += $(SENDER_SOURCES)

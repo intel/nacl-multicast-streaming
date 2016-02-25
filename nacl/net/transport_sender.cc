@@ -13,16 +13,15 @@
 
 namespace sharer {
 
-TransportSender::TransportSender(pp::Instance* instance, base::TickClock* clock,
+TransportSender::TransportSender(SharerEnvironment* env,
                                  const SenderConfig& config,
                                  const TransportInitializedCb& cb)
-    : clock_(clock),
+    : env_(env),
       // TODO: Figure out the correct send_buffer_size
-      transport_(instance, config.remote_address, config.remote_port, 4096, cb),
-      pacer_(clock, &transport_) {
-  PP_DCHECK(clock_);
-  // TODO: Remove this as soon as we use the clock
-  if (!clock_) {
+      transport_(env_, config.remote_address, config.remote_port, 4096, cb),
+      pacer_(env_, &transport_) {
+  PP_DCHECK(env_->clock());
+  if (!env_->clock()) {
     ERR() << "Clock can't be null.";
     return;
   }
@@ -77,7 +76,7 @@ void TransportSender::InitializeVideo(
     this->OnReceivedSharerMessage(config.ssrc, addr, sharer_message_cb, msg);
   };
   video_rtcp_session_ =
-      make_unique<RtcpHandler>(sharer_cb, rtt_cb, clock_, nullptr, &pacer_,
+      make_unique<RtcpHandler>(sharer_cb, rtt_cb, env_, nullptr, &pacer_,
                                config.ssrc, config.feedback_ssrc);
   pacer_.RegisterVideoSsrc(config.ssrc);
   AddValidSsrc(config.feedback_ssrc);

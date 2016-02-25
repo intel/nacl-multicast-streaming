@@ -6,7 +6,9 @@
 #define SHARER_SENDER_H_
 
 #include "base/macros.h"
+#include "logging/stats_event_subscriber.h"
 #include "sharer_config.h"
+#include "sharer_environment.h"
 #include "net/transport_sender.h"
 #include "sender/video_sender.h"
 
@@ -48,9 +50,16 @@ class SharerSender {
   void InitializedTransport(bool success);
   void CheckInitialized();
   void SetTargetPlayoutDelay(const base::TimeDelta& playout_delay);
+  void ScheduleReport();
+  void RunReport(int32_t);
 
-  pp::Instance* instance_;
+  SharerEnvironment env_;
+  StatsEventSubscriber stats_;
+
   int sender_id_;
+  pp::CompletionCallbackFactory<SharerSender> factory_;
+  bool report_scheduled_;
+  bool stream_sharing_;
 
   std::unique_ptr<base::TickClock> clock_;
 

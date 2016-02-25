@@ -5,7 +5,9 @@
 
 #include "net/pacing/paced_sender.h"
 
+#include "base/big_endian.h"
 #include "base/logger.h"
+#include "base/ptr_utils.h"
 
 namespace sharer {
 
@@ -35,8 +37,8 @@ PacketKey PacedSender::MakePacketKey(const base::TimeTicks& ticks,
 PacedSender::PacketSendRecord::PacketSendRecord()
     : last_byte_sent(0), last_byte_sent_for_audio(0) {}
 
-PacedSender::PacedSender(base::TickClock* clock, UdpTransport* udp_sender)
-    : clock_(clock),
+PacedSender::PacedSender(SharerEnvironment* env, UdpTransport* udp_sender)
+    : env_(env),
       callback_factory_(this),
       transport_(udp_sender),
       audio_ssrc_(0),
@@ -126,11 +128,11 @@ bool PacedSender::ResendPackets(const std::string& addr,
     return true;
   }
   const bool high_priority = IsHighPriority(packets.begin()->first);
-  const base::TimeTicks now = clock_->NowTicks();
+  const base::TimeTicks now = env_->clock()->NowTicks();
   for (size_t i = 0; i < packets.size(); i++) {
     PacketWithIP packet_key = std::make_pair(addr, packets[i].first);
     if (!ShouldResend(packet_key, dedup_info, now)) {
-      /* LogPacketEvent(packets[i].second->data, PACKET_RTX_REJECTED); */
+      LogPacketEvent(packets[i].second, PACKET_RTX_REJECTED);
       DWRN() << ">> Not resending to: " << addr << ", ["
              << packets[i].first.second.first << ":"
              << packets[i].first.second.second << "]";
@@ -227,7 +229,7 @@ void PacedSender::SendStoredPackets(int32_t result) {
     has_reached_upper_bound_once_ = true;
   }
 
-  base::TimeTicks now = clock_->NowTicks();
+  base::TimeTicks now = env_->clock()->NowTicks();
   // I don't actually trust that PostDelayTask(x - now) will mean that
   // now >= x when the call happens, so check if the previous state was
   // State_BurstFull too.
@@ -270,16 +272,16 @@ void PacedSender::SendStoredPackets(int32_t result) {
     PacketSendRecord send_record;
     send_record.time = now;
 
-    /* switch (packet_type) { */
-    /*   case PacketType_Resend: */
-    /*     LogPacketEvent(packet->data, PACKET_RETRANSMITTED); */
-    /*     break; */
-    /*   case PacketType_Normal: */
-    /*     LogPacketEvent(packet->data, PACKET_SENT_TO_NETWORK); */
-    /*     break; */
-    /*   case PacketType_RTCP: */
-    /*     break; */
-    /* } */
+    switch (packet_type) {
+      case PacketType::Resend:
+        LogPacketEvent(packet, PACKET_RETRANSMITTED);
+        break;
+      case PacketType::Normal:
+        LogPacketEvent(packet, PACKET_SENT_TO_NETWORK);
+        break;
+      case PacketType::RTCP:
+        break;
+    }
 
     const bool socket_blocked =
         !transport_->SendPacket(packet_key.first, packet, cb);
@@ -308,6 +310,34 @@ void PacedSender::SendStoredPackets(int32_t result) {
   PP_DCHECK(send_history_buffer_.size() <=
             (max_burst_size_ * kMaxDedupeWindowMs / kPacingIntervalMs));
   state_ = State::Unblocked;
+}
+
+void PacedSender::LogPacketEvent(PacketRef packet, SharerLoggingEvent type) {
+  auto event = make_unique<PacketEvent>();
+  event->timestamp = env_->clock()->NowTicks();
+  event->type = type;
+
+  BigEndianReader reader(reinterpret_cast<const char*>(packet->data()),
+                               packet->size());
+  bool success = reader.Skip(4);
+  success &= reader.ReadU32(&event->rtp_timestamp);
+  uint32_t ssrc;
+  success &= reader.ReadU32(&ssrc);
+  if (ssrc == audio_ssrc_) {
+    event->media_type = AUDIO_EVENT;
+  } else if (ssrc == video_ssrc_) {
+    event->media_type = VIDEO_EVENT;
+  } else {
+    DWRN() << "Got unknown ssrc " << ssrc << " when logging packet event";
+    return;
+  }
+  success &= reader.Skip(2);
+  success &= reader.ReadU16(&event->packet_id);
+  success &= reader.ReadU16(&event->max_packet_id);
+  event->size = packet->size();
+  PP_DCHECK(success);
+
+  env_->logger()->DispatchPacketEvent(std::move(event));
 }
 
 }  // namespace sharer

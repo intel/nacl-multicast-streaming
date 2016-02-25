@@ -28,7 +28,7 @@ Decoder::Decoder(pp::Instance* instance, int id,
 
   assert(!decoder_->is_null());
   decoder_->Initialize(graphics_3d, PP_VIDEOPROFILE_VP8_ANY,
-                       PP_HARDWAREACCELERATION_WITHFALLBACK,
+                       PP_HARDWAREACCELERATION_WITHFALLBACK, 0,
                        callback_factory_.NewCallback(&Decoder::InitializeDone));
 }
 

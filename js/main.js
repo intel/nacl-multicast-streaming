@@ -17,8 +17,6 @@ var shareMode = null;
 var sharer_ = null;
 var streamTrack_ = null;
 
-var capture_width = 1280;
-var capture_height = 720;
 var moduleWidth = null;
 var moduleHeight = null;
 
@@ -61,8 +59,8 @@ function desktopShare(cbStarted) {
                 mandatory: {
                     chromeMediaSource: 'desktop',
                     chromeMediaSourceId: streamId,
-                    maxWidth: capture_width,
-                    maxHeight: capture_height
+                    maxWidth: 4096,
+                    maxHeight: 4096
                 }
             }
         };
@@ -81,8 +79,8 @@ function cameraShare(cbStarted) {
   var constraints = {
     video: {
       mandatory: {
-        minWidth: capture_width,
-        minHeight: capture_height
+        maxWidth: 4096,
+        maxHeight: 4096
       }
     }
   };

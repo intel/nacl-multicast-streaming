@@ -5,6 +5,7 @@
 #include "sender/video_encoder.h"
 
 #include "base/logger.h"
+#include "base/ptr_utils.h"
 #include "net/sharer_transport_config.h"
 #include "sharer_defines.h"
 
@@ -12,18 +13,28 @@
 
 namespace sharer {
 
-VideoEncoder::VideoEncoder(pp::Instance* instance, const SenderConfig& config,
-                           VideoEncoderInitializedCb cb)
+VideoEncoder::Request::Request() : type(RequestType::NONE) {}
+
+VideoEncoder::Request::~Request() {}
+
+VideoEncoder::RequestEncode::RequestEncode() {
+  type = RequestType::ENCODE;
+}
+
+VideoEncoder::RequestResize::RequestResize(const pp::Size& size)
+    : size(size) {
+  type = RequestType::RESIZE;
+}
+
+VideoEncoder::VideoEncoder(pp::Instance* instance, const SenderConfig& config)
     : instance_(instance),
       factory_(this),
-      initialized_cb_(cb),
       config_(config),
       frame_format_(PP_VIDEOFRAME_FORMAT_I420),
       last_encoded_frame_id_(kStartFrameId),
       last_timestamp_(0),
       is_initialized_(false) {
   INF() << "Starting video encoder.";
-  Initialize();
 }
 
 void VideoEncoder::Initialize() {
@@ -32,30 +43,38 @@ void VideoEncoder::Initialize() {
 }
 
 void VideoEncoder::InitializedThread(int32_t result) {
-  if (!is_initialized_) {
-    is_initialized_ = true;
+  if (!current_request_)
+    WRN() << "No current request. Stop requested during startup?";
 
-    // Inform successful initialization only once
-    if (initialized_cb_) {
-      initialized_cb_(result == PP_OK);
-      initialized_cb_ = nullptr;
-    }
+  if (current_request_->type != RequestType::RESIZE) {
+    WRN() << "Wrong type of request after thread initialized: "
+          << (current_request_->type == RequestType::ENCODE ?
+              "ENCODE" : "NONE");
+    return;
   }
 
-  EncodeOneFrame();
+  auto req = dynamic_cast<const RequestResize&>(*current_request_);
+  if (req.callback) {
+    req.callback(result == PP_OK);
+  }
+
+  if (!is_initialized_ && result == PP_OK) is_initialized_ = true;
+
+  current_request_ = nullptr;
+  ProcessNextRequest();
 }
 
 void VideoEncoder::EncodeFrame(pp::VideoFrame frame,
                                const base::TimeTicks& reference_time,
                                EncoderReleaseCb cb) {
-  Request req;
-  req.frame = frame;
-  req.callback = cb;
-  req.reference_time = reference_time;
+  auto req = make_unique<RequestEncode>();
+  req->frame = frame;
+  req->callback = cb;
+  req->reference_time = reference_time;
 
-  requests_.push(req);
+  requests_.push(std::move(req));
 
-  EncodeOneFrame();
+  ProcessNextRequest();
 }
 
 void VideoEncoder::GetEncodedFrame(EncoderEncodedCb cb) {
@@ -70,7 +89,6 @@ void VideoEncoder::GetEncodedFrame(EncoderEncodedCb cb) {
     auto cc = factory_.NewCallback(&VideoEncoder::EmitOneFrame);
     pp::Module::Get()->core()->CallOnMainThread(0, cc);
   } else {
-    Initialize();
   }
 }
 
@@ -99,28 +117,73 @@ void VideoEncoder::EmitOneFrame(int32_t result) {
   cb(true, encoded);
 }
 
-void VideoEncoder::EncodeOneFrame() {
-  if (!is_initialized_) return;
+void VideoEncoder::ProcessNextRequest() {
+  // Already processing a request
+  if (current_request_) return;
 
-  if (requests_.empty()) return;
+  bool keep_processing = true;
+  while (!requests_.empty() && keep_processing) {
+    current_request_ = std::move(requests_.front());
+    requests_.pop();
 
-  // Already encoding a frame
-  if (current_request_.callback) return;
+    switch (current_request_->type) {
+      case RequestType::NONE:
+        current_request_ = nullptr;
+        break;
+      case RequestType::ENCODE:
+        keep_processing = ProcessEncodeRequest();
+        break;
+      case RequestType::RESIZE:
+        keep_processing = ProcessResizeRequest();
+        break;
+      default:
+        ERR() << "Unrecognized command on encoder queue.";
+        current_request_ = nullptr;
+    }
+  }
+}
 
-  current_request_ = requests_.front();
-  requests_.pop();
+// Returns true if we can continue and process another request
+bool VideoEncoder::ProcessResizeRequest() {
+  auto req = dynamic_cast<const RequestResize&>(*current_request_);
+  if (req.size.width() != requested_size_.width() ||
+      req.size.height() != requested_size_.height()) {
+    if (is_initialized_) EncoderPauseDestructor();
+    requested_size_ = req.size;
+  }
+
+  if (!is_initialized_) {
+    Initialize();
+    // Need to wait for the encoder initialization, so stop processing.
+    return false;
+  }
+
+  return true;
+}
+
+// Returns true if we can continue and process another request
+bool VideoEncoder::ProcessEncodeRequest() {
+  if (!is_initialized_) {
+    ERR() << "Encoder not initialized.";
+    current_request_ = nullptr;
+    return true;
+  }
 
   auto cc = factory_.NewCallback(&VideoEncoder::ThreadEncode);
   thread_loop_.PostWork(cc);
+
+  // Can't encode more than one frame at once, so stop processing.
+  return false;
 }
 
 void VideoEncoder::OnFrameReleased(int32_t result) {
-  if (current_request_.callback) {
-    current_request_.callback(current_request_.frame);
+  RequestEncode* req = dynamic_cast<RequestEncode*>(current_request_.get());
+  if (req->callback) {
+    req->callback(req->frame);
   }
-  current_request_ = Request();
+  current_request_ = nullptr;
 
-  EncodeOneFrame();
+  ProcessNextRequest();
 }
 
 void VideoEncoder::OnEncodedFrame(int32_t result,
@@ -148,17 +211,27 @@ void VideoEncoder::ChangeEncoding(const SenderConfig& config) {
                                                  config.frame_rate);
 }
 
+void VideoEncoder::Resize(const pp::Size& size, EncoderResizedCb cb) {
+  auto req = make_unique<RequestResize>(size);
+  req->callback = cb;
+
+  requests_.push(std::move(req));
+  ProcessNextRequest();
+}
+
 // Encoder thread methods
 void VideoEncoder::ThreadInitialize() {
   DINF() << "Thread starting.";
   thread_loop_.AttachToCurrentThread();
+
+  auto req = dynamic_cast<const RequestResize&>(*current_request_);
 
   auto cc = factory_.NewCallback(&VideoEncoder::ThreadInitialized);
 
   video_encoder_ = pp::VideoEncoder(instance_);
   // Always use VP8 codec and hardware acceleration, if available
   video_encoder_.Initialize(
-      frame_format_, pp::Size(1280, 720), PP_VIDEOPROFILE_VP8_ANY,
+      frame_format_, req.size, PP_VIDEOPROFILE_VP8_ANY,
       config_.initial_bitrate * 1000, PP_HARDWAREACCELERATION_WITHFALLBACK, cc);
 
   thread_loop_.Run();
@@ -237,7 +310,7 @@ std::shared_ptr<EncodedFrame> VideoEncoder::ThreadBitstreamToEncodedFrame(
 void VideoEncoder::ThreadEncode(int32_t result) {
   /* DINF() << "Request to encode frame."; */
   auto cc = factory_.NewCallbackWithOutput(&VideoEncoder::ThreadOnEncoderFrame,
-                                           current_request_);
+                                           current_request_.get());
   video_encoder_.GetVideoFrame(cc);
 }
 
@@ -248,7 +321,7 @@ void VideoEncoder::ThreadInformFrameRelease(int32_t result) {
 
 void VideoEncoder::ThreadOnEncoderFrame(int32_t result,
                                         pp::VideoFrame encoder_frame,
-                                        Request req) {
+                                        Request* req_base) {
   if (result == PP_ERROR_ABORTED) {
     ThreadInformFrameRelease(result);
     return;
@@ -262,11 +335,12 @@ void VideoEncoder::ThreadOnEncoderFrame(int32_t result,
 
   // TODO: Check for frame size
 
-  if (ThreadCopyVideoFrame(encoder_frame, req.frame) == PP_OK) {
-    PP_TimeDelta timestamp = req.frame.GetTimestamp();
+  RequestEncode* req = dynamic_cast<RequestEncode*>(req_base);
+  if (ThreadCopyVideoFrame(encoder_frame, req->frame) == PP_OK) {
+    PP_TimeDelta timestamp = req->frame.GetTimestamp();
 
     last_timestamp_ = timestamp;
-    last_reference_time_ = req.reference_time;
+    last_reference_time_ = req->reference_time;
     auto cc =
         factory_.NewCallback(&VideoEncoder::ThreadOnEncodeDone, timestamp, req);
     video_encoder_.Encode(encoder_frame, PP_FALSE, cc);
@@ -289,7 +363,7 @@ int32_t VideoEncoder::ThreadCopyVideoFrame(pp::VideoFrame dst,
 }
 
 void VideoEncoder::ThreadOnEncodeDone(int32_t result, PP_TimeDelta timestamp,
-                                      Request req) {
+                                      RequestEncode* req) {
   if (result == PP_ERROR_ABORTED) return;
 
   if (result != PP_OK) {

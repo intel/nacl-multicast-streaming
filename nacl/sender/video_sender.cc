@@ -11,6 +11,11 @@
 #include "sender/congestion_control.h"
 #include "sharer_defines.h"
 
+static int32_t roundTo4(int32_t value) {
+  int32_t rest = value % 4;
+  return value - rest;
+}
+
 namespace sharer {
 
 const int kRoundTripsNeeded = 4;
@@ -35,10 +40,11 @@ VideoSender::VideoSender(SharerEnvironment* env,
       frame_rate_(config.frame_rate),
       frames_in_encoder_(0),
       pause_delta_(0.1),
+      querying_size_(false),
+      skip_resize_(true),
       is_receiving_track_frames_(false),
       is_sending_(false) {
-  auto encoder_cb = [this](bool result) { this->Initialized(result); };
-  encoder_ = make_unique<VideoEncoder>(env->instance(), config, encoder_cb);
+  encoder_ = make_unique<VideoEncoder>(env->instance(), config);
 
   auto sharer_feedback_cb =
       [this](const std::string& addr, const RtcpSharerMessage& sharer_message) {
@@ -54,9 +60,16 @@ VideoSender::VideoSender(SharerEnvironment* env,
   transport_config.rtp_payload_type = 96;
   transport_sender->InitializeVideo(transport_config, sharer_feedback_cb,
                                     rtt_cb);
+
+  initialized_ = true;
+  cb(true);
 }
 
 VideoSender::~VideoSender() { DINF() << "Destroying VideoSender."; }
+
+void VideoSender::SetSize(const pp::Size& size) {
+  requested_size_ = size;
+}
 
 int VideoSender::GetNumberOfFramesInEncoder() const {
   return frames_in_encoder_;
@@ -73,16 +86,6 @@ base::TimeDelta VideoSender::GetInFlightMediaDuration() const {
 }
 
 void VideoSender::OnAck(uint32_t frame_id) {}
-
-void VideoSender::Initialized(bool result) {
-  initialized_ = result;
-  if (!result) {
-    ERR() << "Failed to initialize encoder.";
-    encoder_ = nullptr;
-  }
-  initialized_cb_(result);
-  initialized_cb_ = nullptr;
-}
 
 void VideoSender::StartSending(const pp::MediaStreamVideoTrack& video_track,
                                const SharerSuccessCb& cb) {
@@ -101,8 +104,9 @@ void VideoSender::StartSending(const pp::MediaStreamVideoTrack& video_track,
   video_track_ = video_track;
 
   start_sending_cb_ = cb;
-  ConfigureTrack();
-  RequestEncodedFrame();
+
+  ConfigureForFirstFrame();
+
   is_sending_ = true;
 }
 
@@ -132,12 +136,117 @@ void VideoSender::ChangeEncoding(const SenderConfig& config) {
   encoder_->ChangeEncoding(config);
 }
 
+void VideoSender::ConfigureForFirstFrame() {
+  int32_t attrib_list[]{
+      PP_MEDIASTREAMVIDEOTRACK_ATTRIB_FORMAT, encoder_->format(),
+      PP_MEDIASTREAMVIDEOTRACK_ATTRIB_NONE};
+
+  auto cc = factory_.NewCallback(&VideoSender::OnConfiguredForFirstFrame);
+  video_track_.Configure(attrib_list, cc);
+}
+
+void VideoSender::OnConfiguredForFirstFrame(int32_t result) {
+  if (result != PP_OK) {
+    ERR() << "Could not configure video track: " << result;
+    if (start_sending_cb_) start_sending_cb_(false);
+    start_sending_cb_ = nullptr;
+    return;
+  }
+
+  auto cc = factory_.NewCallbackWithOutput(&VideoSender::OnFirstFrame);
+  video_track_.GetFrame(cc);
+}
+
+void VideoSender::OnFirstFrame(int32_t result, pp::VideoFrame frame) {
+  // TODO: on aborted, stop everything related to encoding and sending frames
+  if (result == PP_ERROR_ABORTED) return;
+
+  if (result != PP_OK) {
+    ERR() << "Cannot get frame from video track: " << result;
+    return;
+  }
+
+  pp::Size size;
+  if (!frame.GetSize(&size)) {
+    ERR() << "Cannot get size of first frame.";
+    return;
+  }
+
+  video_track_.RecycleFrame(frame);
+
+  stream_size_ = size;
+
+  if (requested_size_.IsEmpty())
+    skip_resize_ = true;
+  else {
+    pp::Size calc_size = CalculateSize();
+    if (calc_size.width() == stream_size_.width() ||
+        calc_size.height() == stream_size_.height())
+      skip_resize_ = true;
+    else {
+      size = calc_size;
+      skip_resize_ = false;
+    }
+  }
+
+  auto resized_cb = [this](bool success) {
+    this->OnEncoderResized(success);
+  };
+  encoder_->Resize(size, resized_cb);
+}
+
+pp::Size VideoSender::CalculateSize() const {
+  // First check if original size is smaller than requested size. If so, do not
+  // scale up.
+  if (stream_size_.width() <= requested_size_.width() &&
+      stream_size_.height() <= requested_size_.height())
+    return stream_size_;
+
+  // Otherwise, calculate the new size so that it still fits "inside" the
+  // requested size.
+  float ratio = (float)stream_size_.height() / stream_size_.width();
+  float new_height = requested_size_.width() * ratio;
+  if (new_height <= requested_size_.height()) {
+    pp::Size size(roundTo4(requested_size_.width()), roundTo4(new_height));
+    return size;
+  }
+
+  float new_width = requested_size_.height() / ratio;
+  if (new_width <= requested_size_.width()) {
+    pp::Size size(roundTo4(new_width), roundTo4(requested_size_.height()));
+    return size;
+  }
+
+  ERR() << "Something went wrong with size calculation. stream size: "
+        << stream_size_.width() << "x" << stream_size_.height()
+        << ", requested size: "
+        << requested_size_.width() << "x" << requested_size_.height();
+
+  return pp::Size();
+}
+
+void VideoSender::OnEncoderResized(bool success) {
+  if (!success) {
+    ERR() << "Could not resize encoder.";
+    return;
+  }
+
+  if (skip_resize_)
+    OnConfiguredTrack(PP_OK);
+  else
+    // Reconfigure stream
+    ConfigureTrack();
+}
+
 void VideoSender::ConfigureTrack() {
   int32_t attrib_list[]{
       PP_MEDIASTREAMVIDEOTRACK_ATTRIB_FORMAT, encoder_->format(),
-      PP_MEDIASTREAMVIDEOTRACK_ATTRIB_WIDTH,  encoder_->size().width(),
-      PP_MEDIASTREAMVIDEOTRACK_ATTRIB_WIDTH,  encoder_->size().width(),
+      PP_MEDIASTREAMVIDEOTRACK_ATTRIB_WIDTH, encoder_->size().width(),
+      PP_MEDIASTREAMVIDEOTRACK_ATTRIB_HEIGHT, encoder_->size().height(),
       PP_MEDIASTREAMVIDEOTRACK_ATTRIB_NONE};
+
+  DINF() << "Configuring track to: " << encoder_->size().width()
+         << "x" << encoder_->size().height();
 
   auto cc = factory_.NewCallback(&VideoSender::OnConfiguredTrack);
   video_track_.Configure(attrib_list, cc);
@@ -151,6 +260,7 @@ void VideoSender::OnConfiguredTrack(int32_t result) {
     return;
   }
 
+  RequestEncodedFrame();
   StartTrackFrames();
   ScheduleNextEncode();
   if (start_sending_cb_) start_sending_cb_(true);

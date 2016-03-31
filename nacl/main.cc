@@ -339,6 +339,10 @@ void MyInstance::StartSharer(int cmd_id, const pp::Var& payload) {
 
   if (dict.HasKey(pp::Var("ip")))
     config.remote_address = dict.Get(pp::Var("ip")).AsString();
+  if (dict.HasKey(pp::Var("port"))) {
+    std::string port_str = dict.Get(pp::Var("port")).AsString();
+    config.remote_port = std::stoi(port_str);
+  }
   if (dict.HasKey(pp::Var("bitrate")))
     config.initial_bitrate = std::stoi(dict.Get(pp::Var("bitrate")).AsString());
   if (dict.HasKey(pp::Var("fps")))

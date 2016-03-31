@@ -324,6 +324,7 @@ var nms = (function() {
         ip: options.ip,
         bitrate: options.bitrate,
         fps: options.fps,
+        port: options.port,
       };
 
       console.log(msg);

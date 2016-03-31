@@ -24,6 +24,13 @@ struct ReceiverConfig {
 // TODO: Expand namespace to receiver too
 namespace sharer {
 
+struct ReceiverNetConfig {
+  ReceiverNetConfig();
+  ~ReceiverNetConfig();
+  std::string address;
+  uint16_t port;
+};
+
 struct SenderConfig {
   SenderConfig();
   ~SenderConfig();

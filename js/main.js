@@ -25,11 +25,13 @@ navigator.getUserMedia = navigator.getUserMedia ||
 
 function getOptions() {
     var ip = document.getElementById('ipinput').value;
+    var port = document.getElementById('port').value;
     var bitrate = document.getElementById('bitrate').value;
     var fps = document.getElementById('fps').value;
 
     return {
       ip: ip,
+      port: port,
       bitrate: bitrate,
       fps: fps,
     }
@@ -40,7 +42,7 @@ function saveOptions(options) {
 }
 
 function loadOptions(cb) {
-    chrome.storage.local.get(['ip', 'bitrate', 'fps'],
+    chrome.storage.local.get(['ip', 'bitrate', 'fps', 'port'],
                              function(options) {
         cb(options);
     });
@@ -321,7 +323,11 @@ function localhostChanged() {
 }
 
 function startPlay() {
-  nms.startPlayer().then(function() {
+
+  var options = getOptions();
+  saveOptions(options);
+
+  nms.startPlayer(options).then(function() {
     document.getElementById('playStream').innerText = 'Stop stream';
     document.getElementById('playStream').onclick = stopStreamReceiver;
   });

@@ -127,8 +127,10 @@ class MyInstance : public pp::Instance, public pp::Graphics3DClient {
   void CreateShader(GLuint program, GLenum type, const char* source, int size);
   void PaintNextPicture();
   void PaintFinished(int32_t result);
-  void StartNetwork();
-  void StartPlaying(int cmd_id);
+  void StartNetwork(const sharer::ReceiverNetConfig& config);
+
+  // interface with Javascript
+  void StartPlaying(int cmd_id, const pp::Var& payload);
   void StopPlaying(int cmd_id);
   void SharerMessage(int cmd_id, bool success, const pp::Var& payload);
   void StartSharer(int cmd_id, const pp::Var& payload);
@@ -231,7 +233,7 @@ void MyInstance::DidChangeView(const pp::Rect& position,
   }
 }
 
-void MyInstance::StartPlaying(int cmd_id) {
+void MyInstance::StartPlaying(int cmd_id, const pp::Var& payload) {
   if (is_listening_) {
     WRN() << "Playback already started.";
     SharerMessage(cmd_id, false, pp::Var());
@@ -244,8 +246,23 @@ void MyInstance::StartPlaying(int cmd_id) {
     INF() << "StartPlaying: Initialized GL context";
   }
 
+  // Parse payload
+  sharer::ReceiverNetConfig config;
+  if (!payload.is_dictionary()) {
+    ERR() << "Couldn't start receiver: missing payload.";
+    SharerMessage(cmd_id, false, pp::Var());
+    return;
+  }
+  pp::VarDictionary dict(payload);
+  if (dict.HasKey(pp::Var("ip")))
+    config.address = dict.Get(pp::Var("ip")).AsString();
+  if (dict.HasKey(pp::Var("port"))) {
+    std::string port_str = dict.Get(pp::Var("port")).AsString();
+    config.port = std::stoi(port_str);
+  }
+
   InitializeDecoder();
-  StartNetwork();
+  StartNetwork(config);
   is_listening_ = true;
   SharerMessage(cmd_id, true, pp::Var());
 }
@@ -339,6 +356,10 @@ void MyInstance::StartSharer(int cmd_id, const pp::Var& payload) {
 
   if (dict.HasKey(pp::Var("ip")))
     config.remote_address = dict.Get(pp::Var("ip")).AsString();
+  if (dict.HasKey(pp::Var("port"))) {
+    std::string port_str = dict.Get(pp::Var("port")).AsString();
+    config.remote_port = std::stoi(port_str);
+  }
   if (dict.HasKey(pp::Var("bitrate")))
     config.initial_bitrate = std::stoi(dict.Get(pp::Var("bitrate")).AsString());
   if (dict.HasKey(pp::Var("fps")))
@@ -454,7 +475,7 @@ void MyInstance::HandleMessage(const pp::Var& var_message) {
   if (dict.HasKey("payload")) var_payload = dict.Get("payload");
 
   if (cmd == "startUDP" || cmd == "startReceiver") {
-    StartPlaying(cmd_id);
+    StartPlaying(cmd_id, var_payload);
   } else if (cmd == "stopReceiver") {
     StopPlaying(cmd_id);
   } else if (cmd == "startSharer") {
@@ -504,7 +525,7 @@ void MyInstance::FrameReceived(std::shared_ptr<EncodedFrame> encoded) {
   video_decoder_->DecodeNextFrame(encoded, [this]() { this->DecodeDone(); });
 }
 
-void MyInstance::StartNetwork() {
+void MyInstance::StartNetwork(const sharer::ReceiverNetConfig& config) {
   ReceiverConfig audio_config;
   ReceiverConfig video_config;
 
@@ -519,7 +540,7 @@ void MyInstance::StartNetwork() {
   video_config.sender_ssrc = 11;
 
   network_handler_ =
-      make_unique<NetworkHandler>(this, audio_config, video_config);
+      make_unique<NetworkHandler>(this, audio_config, video_config, config);
   RequestFrame();
 }
 

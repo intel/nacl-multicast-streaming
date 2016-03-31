@@ -68,6 +68,9 @@ void UDPListener::Start(const std::string& host, uint16_t port) {
     return;
   }
 
+  PP_NetAddress_IPv4 ipv4_addr = {Htons(port), {0, 0, 0, 0}};
+  local_host_ = pp::NetAddress(instance_, ipv4_addr);
+
   pp::CompletionCallback callback =
       callback_factory_.NewCallback(&UDPListener::OnResolveCompletion);
   PP_HostResolver_Hint hint = {PP_NETADDRESS_FAMILY_UNSPECIFIED, 0};
@@ -133,7 +136,7 @@ void UDPListener::OnResolveCompletion(int32_t result) {
 
   pp::NetAddress addr = resolver_.GetNetAddress(0);
   INF() << "Resolved: " << addr.DescribeAsString(true).AsString();
-  local_host_ = addr;
+  group_addr_ = addr;
 }
 
 void UDPListener::Stop() {
@@ -240,8 +243,6 @@ void UDPListener::OnConnectCompletion(int32_t result) {
 
   pp::CompletionCallback joinCallback =
       callback_factory_.NewCallback(&UDPListener::OnJoinedCompletion);
-  PP_NetAddress_IPv4 ipv4_addr = {Htons(5004), {239, 255, 42, 99}};
-  group_addr_ = pp::NetAddress(instance_, ipv4_addr);
   udp_socket_.JoinGroup(group_addr_, joinCallback);
 }
 

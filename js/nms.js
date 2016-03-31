@@ -324,6 +324,7 @@ var nms = (function() {
         ip: options.ip,
         bitrate: options.bitrate,
         fps: options.fps,
+        port: options.port,
       };
 
       console.log(msg);
@@ -331,7 +332,7 @@ var nms = (function() {
     });
   }
 
-  function startPlayer() {
+  function startPlayer(options) {
     return new Promise(function(resolve, reject) {
       function _resolved(data) {
         resolve();
@@ -341,7 +342,12 @@ var nms = (function() {
         reject();
       }
 
-      _postMessage('startUDP', null, _resolved, _rejected);
+      var msg = {
+        ip: options.ip,
+        port: options.port,
+      };
+
+      _postMessage('startUDP', msg, _resolved, _rejected);
     });
   }
 

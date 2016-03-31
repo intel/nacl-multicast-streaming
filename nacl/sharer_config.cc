@@ -14,6 +14,12 @@ ReceiverConfig::~ReceiverConfig() {}
 
 namespace sharer {
 
+ReceiverNetConfig::ReceiverNetConfig()
+    : address("127.0.0.1"),
+      port(5004) {}
+
+ReceiverNetConfig::~ReceiverNetConfig() {}
+
 SenderConfig::SenderConfig()
     : initial_bitrate(1000),
       frame_rate(30),

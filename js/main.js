@@ -323,7 +323,11 @@ function localhostChanged() {
 }
 
 function startPlay() {
-  nms.startPlayer().then(function() {
+
+  var options = getOptions();
+  saveOptions(options);
+
+  nms.startPlayer(options).then(function() {
     document.getElementById('playStream').innerText = 'Stop stream';
     document.getElementById('playStream').onclick = stopStreamReceiver;
   });

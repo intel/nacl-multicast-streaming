@@ -14,9 +14,10 @@
 
 NetworkHandler::NetworkHandler(pp::Instance* instance,
                                const ReceiverConfig& audio_config,
-                               const ReceiverConfig& video_config)
+                               const ReceiverConfig& video_config,
+                               const sharer::ReceiverNetConfig& net_config)
     : env_(instance),
-      udp_listener_(instance, this, "0.0.0.0", 5004),
+      udp_listener_(instance, this, net_config.address, net_config.port),
       videoReceiver_(&env_, video_config, &udp_listener_),
       audioReceiver_(&env_, audio_config, &udp_listener_),
       frameRequested_(false) {

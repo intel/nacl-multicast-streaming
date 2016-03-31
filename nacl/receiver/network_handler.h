@@ -17,11 +17,16 @@
 class RTP;
 struct ReceiverConfig;
 
+namespace sharer {
+  struct ReceiverNetConfig;
+}
+
 class NetworkHandler : public UDPDelegateInterface {
  public:
   explicit NetworkHandler(pp::Instance* instance,
                           const ReceiverConfig& audio_config,
-                          const ReceiverConfig& video_config);
+                          const ReceiverConfig& video_config,
+                          const sharer::ReceiverNetConfig& config);
   virtual ~NetworkHandler();
 
   void GetNextFrame(const ReceiveEncodedFrameCallback& callback);

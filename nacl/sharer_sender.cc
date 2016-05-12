@@ -46,7 +46,7 @@ void SharerSender::Initialize(const SenderConfig& config,
   video_sender_ =
       make_unique<VideoSender>(&env_, transport_.get(),
                                config, video_cb, playout_changed_cb);
-  video_sender_->SetSize(pp::Size(640, 480));
+  video_sender_->SetSize(pp::Size(1920, 1080));
 }
 
 bool SharerSender::SetTracks(const pp::MediaStreamVideoTrack& video_track,
